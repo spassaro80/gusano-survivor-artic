@@ -1,0 +1,31 @@
+# Roblox / Rojo
+*.rbxl
+*.rbxlx
+*.rbxl.lock
+*.rbxlx.lock
+*.rbxm
+*.rbxmx
+build/
+*.rbxl.bak
+
+# Rojo / Aftman / Foreman tooling
+.aftman/
+~/
+
+# Dependencias (wally)
+Packages/
+ServerPackages/
+DevPackages/
+wally.lock
+
+# Logs y temporales
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+
+# Editores
+.vscode/
+.idea/
+
+# Nota: la carpeta .kiro/ (specs) SÍ se versiona a propósito.
