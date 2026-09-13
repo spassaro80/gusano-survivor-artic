@@ -36,14 +36,22 @@
 	  - La herramienta equipada es un `Tool` hijo del `Character` (Roblox mueve el
 	    Tool al Character al equiparlo). Se hacen visibles todos los `BasePart` del
 	    Tool (Handle incluido) cada fotograma.
-	  - Placeholder de disparo: por robustez, la primera persona se activa tanto al
-	    aparecer el personaje (`CharacterAdded`) como al recibir la señal local
-	    `SurvivalStarted` (si algún controlador la emite). No bloquea si la señal no
-	    existe: el `CharacterAdded` basta para cumplir el presupuesto de 1 s (3.1).
+	  - Disparo de la primera persona: se activa SOLO cuando el servidor confirma el
+	    inicio de la PARTIDA ACTIVA mediante `Remotes.StateUpdate { kind = "started" }`
+	    (emitido tras cerrar el tutorial). Antes de eso la cámara queda en modo normal
+	    con el cursor LIBRE, para que el Jugador pueda usar el ratón en el
+	    Menu_Principal (1.x) y en la tarjeta del tutorial (2.x). Activarla antes
+	    (p. ej. en `CharacterAdded`) capturaría el cursor al centro y haría que el
+	    ratón pareciera no responder en esas pantallas. El personaje se vincula en
+	    `CharacterAdded` para el bucle de visibilidad, pero la primera persona no se
+	    fuerza hasta recibir "started" (Requisito 3.1).
 ]]
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage:WaitForChild("Remotes"))
 
 local player: Player = Players.LocalPlayer
 
@@ -64,6 +72,15 @@ local ARM_PART_NAMES: { [string]: boolean } = {
 
 -- Estado del personaje actualmente gestionado. Se re-vincula en cada respawn.
 local currentCharacter: Model? = nil
+
+-- ¿Ha comenzado ya la PARTIDA ACTIVA? La primera persona (y el bloqueo del ratón
+-- que conlleva) NO debe activarse hasta que el servidor confirme el inicio con
+-- `StateUpdate { kind = "started" }`. Mientras esto sea false, la cámara queda en
+-- modo normal (tercera persona, cursor libre) para que el Jugador pueda usar el
+-- ratón en el Menu_Principal (1.x) y en la tarjeta del tutorial (2.x). Activar la
+-- primera persona antes de tiempo captura el cursor al centro y hace que "el ratón
+-- no funcione" en esas pantallas. (Requisito 3.1: activar al comenzar la partida.)
+local firstPersonEnabled: boolean = false
 
 --[[
 	setFirstPerson — Fuerza el modo de cámara en primera persona bloqueada (3.1).
@@ -107,12 +124,34 @@ end
 local function bindCharacter(character: Model): ()
 	currentCharacter = character
 
-	-- Requisito 3.1: primera persona en cuanto el personaje existe (muy por debajo
-	-- del presupuesto de 1 s).
-	setFirstPerson()
+	-- Solo forzar la primera persona (y reponer visibilidad) si la partida activa
+	-- ya comenzó. Antes de eso, dejar el modo de cámara normal para no capturar el
+	-- cursor durante el menú/tutorial (Requisito 3.1). En respawns durante la
+	-- partida, `firstPersonEnabled` seguirá siendo true y se re-vincula igual.
+	if firstPersonEnabled then
+		setFirstPerson()
+		-- Reponer visibilidad de inmediato para evitar un fotograma con brazos ocultos.
+		makeArmsAndToolVisible(character)
+	end
+end
 
-	-- Reponer visibilidad de inmediato para evitar un fotograma con brazos ocultos.
-	makeArmsAndToolVisible(character)
+--[[
+	enableFirstPerson — Activa la vista en primera persona al comenzar la PARTIDA
+	ACTIVA (Requisito 3.1). Es el ÚNICO punto que habilita el bloqueo del cursor:
+	se invoca al recibir del servidor `StateUpdate { kind = "started" }`, es decir,
+	tras cerrar el tutorial. Idempotente: llamadas repetidas no tienen efecto extra.
+]]
+local function enableFirstPerson(): ()
+	if firstPersonEnabled then
+		return
+	end
+	firstPersonEnabled = true
+
+	setFirstPerson()
+	local character = currentCharacter
+	if character and character.Parent then
+		makeArmsAndToolVisible(character)
+	end
 end
 
 --[[
@@ -121,6 +160,12 @@ end
 	ante cambios externos del modo de cámara.
 ]]
 local function onRenderStepped(): ()
+	-- Mientras la partida activa no haya comenzado, no tocar la cámara ni la
+	-- visibilidad: el cursor debe quedar libre para el menú/tutorial (Req. 3.1).
+	if not firstPersonEnabled then
+		return
+	end
+
 	local character = currentCharacter
 	if not character or not character.Parent then
 		return
@@ -154,6 +199,15 @@ local function start(): ()
 	player.CharacterRemoving:Connect(function(character: Model)
 		if currentCharacter == character then
 			currentCharacter = nil
+		end
+	end)
+
+	-- Activar la primera persona SOLO cuando el servidor confirme el inicio de la
+	-- partida activa (`kind == "started"`), tras cerrar el tutorial. Así el cursor
+	-- permanece libre en el menú y el tutorial (Requisito 3.1).
+	Remotes.StateUpdate.OnClientEvent:Connect(function(payload: any)
+		if type(payload) == "table" and payload.kind == "started" then
+			enableFirstPerson()
 		end
 	end)
 
