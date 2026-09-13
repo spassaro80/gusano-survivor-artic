@@ -185,6 +185,8 @@ end
 	`RenderStepped` que mantiene la visibilidad de brazos y herramienta.
 ]]
 local function start(): ()
+	print("[Gusano] CameraController v3: raton libre en menu/tutorial, 1a persona al iniciar.")
+
 	-- Si el personaje ya existe al arrancar (hot-reload / carga tardía), vincularlo.
 	if player.Character then
 		bindCharacter(player.Character)

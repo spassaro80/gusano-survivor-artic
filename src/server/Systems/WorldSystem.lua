@@ -390,6 +390,21 @@ local function buildSpawn(parent: Instance, topY: number): ()
 	spawn.Parent = parent
 end
 
+-- clearDefaultStudioWorld — Elimina el baseplate y el SpawnLocation por defecto que
+-- trae la plantilla "Baseplate" de Studio. Rojo NO borra lo que ya existe en el
+-- Workspace, así que sin esto el baseplate gris queda en el origen (a la misma
+-- altura que el suelo nevado) TAPANDO el mundo ártico cerca del punto de aparición.
+-- Solo retira objetos claramente por defecto; nunca toca el contenedor ArcticWorld.
+local function clearDefaultStudioWorld(): ()
+	for _, child in workspace:GetChildren() do
+		if child:IsA("BasePart") and child.Name == "Baseplate" then
+			child:Destroy()
+		elseif child:IsA("SpawnLocation") and child.Name ~= "ArcticSpawn" then
+			child:Destroy()
+		end
+	end
+end
+
 --============================================================================
 -- API pública
 --============================================================================
@@ -434,6 +449,10 @@ function WorldSystem.buildWorld(world: World): { [string]: WorldNode }
 	host:ClearAllChildren()
 	nodes = {}
 
+	-- Retira el baseplate/spawn por defecto de la plantilla de Studio para que el
+	-- mundo ártico sea lo que se ve (Rojo no los borra por sí mismo).
+	clearDefaultStudioWorld()
+
 	-- Ambiente ártico (iluminación/atmósfera/nubes) y nieve de Terreno real.
 	applyArcticLighting()
 
@@ -443,6 +462,10 @@ function WorldSystem.buildWorld(world: World): { [string]: WorldNode }
 	buildMountainRange(host, world, topY)
 	buildLakes(host, world, topY)
 	buildSpawn(host, topY)
+	print(string.format(
+		"[Gusano] Mundo artico construido (v3): %d lagos, montanas nevadas, spawn en el centro.",
+		#world.lakes
+	))
 
 	local resourcesFolder = Instance.new("Folder")
 	resourcesFolder.Name = "Resources"
