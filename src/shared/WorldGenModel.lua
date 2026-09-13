@@ -140,9 +140,10 @@ local function generateLakes(rng: Rng, size: number, perimeter: number): { Regio
 	local maxC = size - perimeter - 1
 
 	for _ = 1, count do
-		-- Dimensiones moderadas para que el lago quepa holgadamente en el interior.
-		local width = randInt(rng, 8, 20)
-		local height = randInt(rng, 8, 20)
+		-- Lagos GRANDES: dimensiones amplias que aún caben en el interior sin invadir
+		-- la banda perimetral (x + width - 1 <= maxC garantizado por el rango de x).
+		local width = randInt(rng, 32, 72)
+		local height = randInt(rng, 32, 72)
 		local x = randInt(rng, minC, maxC - width + 1)
 		local y = randInt(rng, minC, maxC - height + 1)
 		table.insert(lakes, { x = x, y = y, width = width, height = height })

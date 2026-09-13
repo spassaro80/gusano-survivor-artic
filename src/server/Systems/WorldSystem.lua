@@ -78,6 +78,11 @@ local HITS_TO_FELL: number = Constants.HARVEST.HITS_TO_FELL
 -- Número máximo de intentos de generación+validación antes de rendirse (Req. 5.6).
 local MAX_ATTEMPTS = 3
 
+-- Lado del cubo de nieve excavable, en studs. DEBE coincidir con
+-- DiggingSystem.CUBE_SIZE (= 4) y con su rejilla worldToCell = floor(pos / 4),
+-- para que al excavar se detecten correctamente los huecos 2x2x2 de las Cuevas.
+local SNOW_CUBE: number = 4
+
 -- Colores mínimos para distinguir elementos en Studio.
 local COLOR_SNOW = Color3.fromRGB(240, 244, 248)
 local COLOR_MOUNTAIN = Color3.fromRGB(120, 128, 140)
@@ -242,36 +247,55 @@ local function buildLakes(parent: Instance, world: World, topY: number)
 		part.Material = Enum.Material.Ice
 		part.Transparency = 0.35
 		part.CanCollide = true
-		part:SetAttribute("kind", "lake")
+		-- kind="ice": el cliente enruta el Pico a "romper hielo" (breakIce) y el
+		-- sistema de excavación lo trata como no excavable (no se cava el lago).
+		part:SetAttribute("kind", "ice")
 		part.Parent = lakesFolder
 	end
 end
 
--- buildStone — Roca cosechable con aspecto redondeado y nevado (Model: peñasco +
--- caperuza de nieve). Tamaños en studs absolutos para que se vea bien sea cual sea
--- BLOCK_SIZE. El nodo se etiqueta en instantiateNode (incluidas todas sus partes).
+-- buildStone — Roca cosechable DEFORME (Model: varios bloques angulares rotados y
+-- de tamaño irregular, como un peñasco natural). Determinista por posición para
+-- que cada roca sea estable entre reconstrucciones. El nodo se etiqueta en
+-- instantiateNode (incluidas todas sus partes) para que la minería lo resuelva.
 local function buildStone(position: Vector3): Instance
 	local model = Instance.new("Model")
 	model.Name = "Roca"
 
-	local w = 5
-	local rock = makePart("Peñasco", Vector3.new(w, w * 0.8, w), position + Vector3.new(0, w * 0.4, 0), COLOR_STONE)
-	rock.Shape = Enum.PartType.Ball
-	rock.Material = Enum.Material.Slate
-	rock.Parent = model
+	-- RNG determinista sembrado por la posición (misma roca -> misma forma).
+	local rng = Random.new(math.floor(position.X * 73.0 + position.Z * 179.0) + 1)
+	local chunks = rng:NextInteger(3, 5)
+	local baseW = 4
 
-	local cap = makePart(
-		"NieveRoca",
-		Vector3.new(w * 0.78, w * 0.5, w * 0.78),
-		position + Vector3.new(0, w * 0.62, 0),
-		COLOR_SNOWCAP
-	)
-	cap.Shape = Enum.PartType.Ball
-	cap.Material = Enum.Material.Snow
-	cap.CanCollide = false
-	cap.Parent = model
+	local first: Part? = nil
+	for i = 1, chunks do
+		local sx = baseW * (0.55 + rng:NextNumber() * 0.8)
+		local sy = baseW * (0.45 + rng:NextNumber() * 0.7)
+		local sz = baseW * (0.55 + rng:NextNumber() * 0.8)
+		local ox = (rng:NextNumber() - 0.5) * baseW * 1.0
+		local oz = (rng:NextNumber() - 0.5) * baseW * 1.0
+		local oy = sy * 0.5
 
-	model.PrimaryPart = rock
+		-- Ligera variación de tono para dar textura al peñasco.
+		local shade = 90 + rng:NextInteger(0, 40)
+		local color = Color3.fromRGB(shade, shade, shade + rng:NextInteger(0, 12))
+
+		local chunk = makePart("Bloque" .. i, Vector3.new(sx, sy, sz), position + Vector3.new(ox, oy, oz), color)
+		chunk.Material = Enum.Material.Slate
+		-- Rotación irregular para que no parezca un cubo alineado.
+		chunk.CFrame = CFrame.new(chunk.Position)
+			* CFrame.Angles(
+				(rng:NextNumber() - 0.5) * 0.9,
+				rng:NextNumber() * math.pi * 2,
+				(rng:NextNumber() - 0.5) * 0.9
+			)
+		chunk.Parent = model
+		if first == nil then
+			first = chunk
+		end
+	end
+
+	model.PrimaryPart = first
 	return model
 end
 
@@ -459,6 +483,56 @@ local function buildSpawn(parent: Instance, topY: number): ()
 	spawn.Parent = parent
 end
 
+-- makeSnowCube — Crea un cubo de nieve EXCAVABLE alineado a la rejilla de
+-- DiggingSystem. (cx, cy, cz) son coordenadas de celda ENTERAS; el centro del cubo
+-- se coloca en (cx*4+2, cy*4+2, cz*4+2) para que floor(centro/4) devuelva la celda
+-- exacta. Se etiqueta con kind="snow" y snowDepth=1 (lo que la Pala requiere).
+local function makeSnowCube(parent: Instance, cx: number, cy: number, cz: number): ()
+	local center = Vector3.new(cx * SNOW_CUBE + SNOW_CUBE / 2, cy * SNOW_CUBE + SNOW_CUBE / 2, cz * SNOW_CUBE + SNOW_CUBE / 2)
+	local cube = makePart("CuboNieve", Vector3.new(SNOW_CUBE, SNOW_CUBE, SNOW_CUBE), center, COLOR_SNOW)
+	cube.Material = Enum.Material.Snow
+	cube:SetAttribute("kind", "snow")
+	cube:SetAttribute("snowDepth", 1)
+	cube.Parent = parent
+end
+
+-- buildSnowMound — Monte de nieve excavable con forma de cúpula (radio decreciente
+-- con la altura), hecho de cubos de nieve alineados a la rejilla. Es lo bastante
+-- macizo como para poder cavar un hueco 2x2x2 (Cueva) con la Pala.
+local function buildSnowMound(parent: Instance, cx0: number, cz0: number, baseRadius: number, height: number): ()
+	for cy = 0, height - 1 do
+		local r = math.max(1, baseRadius - cy)
+		local limit = (r + 0.35) * (r + 0.35)
+		for dx = -r, r do
+			for dz = -r, r do
+				if dx * dx + dz * dz <= limit then
+					makeSnowCube(parent, cx0 + dx, cy, cz0 + dz)
+				end
+			end
+		end
+	end
+end
+
+-- buildSnowMounds — Coloca varios montes de nieve excavables dentro del área de
+-- juego (no en el centro/spawn), para que el Jugador pueda cavar y hacerse una
+-- Cueva con la Pala (Req. 8). Posiciones en celdas de la rejilla de excavación.
+local function buildSnowMounds(parent: Instance): ()
+	local folder = Instance.new("Folder")
+	folder.Name = "SnowMounds"
+	folder.Parent = parent
+
+	-- Celdas centro de cada monte (world ~= celda*4). Repartidos alrededor del spawn.
+	local mounds = {
+		{ cx = 30, cz = 30 },
+		{ cx = -40, cz = 24 },
+		{ cx = 34, cz = -44 },
+		{ cx = -28, cz = -36 },
+	}
+	for _, m in mounds do
+		buildSnowMound(folder, m.cx, m.cz, 4, 5)
+	end
+end
+
 -- clearDefaultStudioWorld — Elimina el baseplate y el SpawnLocation por defecto que
 -- trae la plantilla "Baseplate" de Studio. Rojo NO borra lo que ya existe en el
 -- Workspace, así que sin esto el baseplate gris queda en el origen (a la misma
@@ -530,9 +604,10 @@ function WorldSystem.buildWorld(world: World): { [string]: WorldNode }
 	buildPerimeter(host, world, topY)
 	buildMountainRange(host, world, topY)
 	buildLakes(host, world, topY)
+	buildSnowMounds(host)
 	buildSpawn(host, topY)
 	print(string.format(
-		"[Gusano] Mundo artico construido (v3): %d lagos, montanas nevadas, spawn en el centro.",
+		"[Gusano] Mundo artico construido (v4): %d lagos grandes, cordillera nevada, montes de nieve excavables.",
 		#world.lakes
 	))
 
