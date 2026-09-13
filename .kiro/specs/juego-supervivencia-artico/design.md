@@ -263,7 +263,8 @@ type SaveData = {
 
 | Constante | Valor | Requisito |
 |-----------|-------|-----------|
-| Consumo Hambre / Sed | 1%/s | 4.5, 4.6 |
+| Consumo Calor (base) | 0.2%/s | 4.3 |
+| Consumo Hambre / Sed | 0.2%/s | 4.5, 4.6 |
 | Multiplicador Calor bajo nieve / ventisca | ×2 | 4.3, 6.6 |
 | Caída de Salud con necesidad a 0 | 5%/s | 4.7 |
 | Golpes para talar/minar | 5 | 7.1, 7.4 |

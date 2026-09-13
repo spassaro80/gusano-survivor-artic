@@ -24,8 +24,8 @@
 	Responsabilidades (Requisitos 4.3, 4.5, 4.6, 4.7, 4.8, 6.6):
 	  4.3  Consumo de Calor al DOBLE cuando el jugador está expuesto a nieve/ventisca
 	       (lo modela NeedsModel.step a partir del Env compuesto).
-	  4.5  Consumo de Hambre a 1%/s.
-	  4.6  Consumo de Sed a 1%/s.
+	  4.5  Consumo de Hambre según Constants.NEEDS.HUNGER_DECAY_PER_S (%/s).
+	  4.6  Consumo de Sed según Constants.NEEDS.THIRST_DECAY_PER_S (%/s).
 	  4.7  Caída de Salud a 5%/s mientras alguna necesidad (Calor/Hambre/Sed) está a 0.
 	  4.8  Cuando la Salud llega a 0, provocar la muerte del jugador dentro de ~1 s.
 	  6.6  El doble consumo de Calor aplica bajo nieve/ventisca a la intemperie.

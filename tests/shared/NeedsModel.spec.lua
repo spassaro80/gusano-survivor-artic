@@ -119,7 +119,7 @@ return function()
 			expect(type(seed)).to.equal("number")
 		end)
 
-		it("disminuye Hambre y Sed proporcionalmente a dt (1%/s), sin bajar de 0", function()
+		it("disminuye Hambre y Sed proporcionalmente a dt (según la tasa configurada), sin bajar de 0", function()
 			-- Feature: juego-supervivencia-artico, Property 3: Hambre y Sed disminuyen de forma proporcional al tiempo
 			local seed = PropCheck.forAll(function(rng)
 				return {

@@ -32,6 +32,7 @@
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Lighting = game:GetService("Lighting")
 
 local Types = require(ReplicatedStorage.Shared.Types)
 local Constants = require(ReplicatedStorage.Shared.Constants)
@@ -82,6 +83,8 @@ local COLOR_ICE = Color3.fromRGB(150, 205, 235)
 local COLOR_STONE = Color3.fromRGB(105, 105, 105)
 local COLOR_TRUNK = Color3.fromRGB(96, 64, 32)
 local COLOR_LEAVES = Color3.fromRGB(48, 120, 72)
+local COLOR_ROCK_DARK = Color3.fromRGB(96, 104, 120)
+local COLOR_SNOWCAP = Color3.fromRGB(236, 244, 252)
 
 --============================================================================
 -- Estado autoritativo del Sistema (nivel de servidor, un Mundo por servidor).
@@ -257,6 +260,137 @@ local function instantiateNode(node: WorldNode, parent: Instance): Instance
 end
 
 --============================================================================
+-- Ambiente ártico: iluminación, atmósfera y nubes (aspecto de bioma nevado).
+--============================================================================
+
+-- applyArcticLighting — Ajusta Lighting para un aspecto ártico frío y nublado y
+-- añade Atmosphere + Clouds. Todo en pcall: si algo falla, el mundo se construye
+-- igualmente. NO toca FogStart/FogEnd (los gestiona el HUD para las ventiscas).
+local function applyArcticLighting(): ()
+	pcall(function()
+		Lighting.Ambient = Color3.fromRGB(150, 160, 175)
+		Lighting.OutdoorAmbient = Color3.fromRGB(160, 172, 188)
+		Lighting.Brightness = 2
+		Lighting.ClockTime = 14
+		Lighting.FogColor = Color3.fromRGB(222, 230, 240)
+		Lighting.ExposureCompensation = 0.15
+	end)
+
+	pcall(function()
+		local atmos = Lighting:FindFirstChildOfClass("Atmosphere")
+		if not atmos then
+			atmos = Instance.new("Atmosphere")
+			atmos.Parent = Lighting
+		end
+		atmos.Density = 0.36
+		atmos.Haze = 2.2
+		atmos.Color = Color3.fromRGB(220, 228, 238)
+		atmos.Decay = Color3.fromRGB(184, 202, 222)
+		atmos.Glare = 0.25
+	end)
+
+	pcall(function()
+		local clouds = workspace.Terrain:FindFirstChildOfClass("Clouds")
+		if not clouds then
+			clouds = Instance.new("Clouds")
+			clouds.Parent = workspace.Terrain
+		end
+		clouds.Cover = 0.85
+		clouds.Density = 0.65
+		clouds.Color = Color3.fromRGB(232, 238, 246)
+	end)
+end
+
+-- paintSnowGround — Pinta una capa fina de Terreno de nieve real sobre TODO el
+-- mapa, para que el suelo se vea inequívocamente como un bioma nevado (además del
+-- baseplate de colisión). En pcall por robustez.
+local function paintSnowGround(world: World): ()
+	pcall(function()
+		local side = world.size * BLOCK_SIZE
+		workspace.Terrain:FillBlock(
+			CFrame.new(0, -1, 0),
+			Vector3.new(side, 2, side),
+			Enum.Material.Snow
+		)
+	end)
+end
+
+-- makeMountain — Pico decorativo: bloque de roca con caperuza de nieve. `base` es
+-- la posición del pie del pico (a la altura del suelo).
+local function makeMountain(parent: Instance, base: Vector3, height: number, width: number): ()
+	local rock = makePart(
+		"Mountain",
+		Vector3.new(width, height, width),
+		base + Vector3.new(0, height / 2, 0),
+		COLOR_ROCK_DARK
+	)
+	rock.Material = Enum.Material.Rock
+	rock.Parent = parent
+
+	local capHeight = height * 0.32
+	local cap = makePart(
+		"SnowCap",
+		Vector3.new(width * 0.82, capHeight, width * 0.82),
+		base + Vector3.new(0, height + capHeight / 2, 0),
+		COLOR_SNOWCAP
+	)
+	cap.Material = Enum.Material.Snow
+	cap.Parent = parent
+end
+
+-- buildMountainRange — Anillo de montañas nevadas justo por fuera de la banda
+-- perimetral, para que se vea una cadena montañosa en el horizonte en todas las
+-- direcciones desde el centro del mapa (Req. 5.2, aspecto). Determinista.
+local function buildMountainRange(parent: Instance, world: World, topY: number): ()
+	local folder = Instance.new("Folder")
+	folder.Name = "MountainRange"
+	folder.Parent = parent
+
+	local side = world.size * BLOCK_SIZE
+	local half = side / 2
+	local ring = half + 90 -- un poco por fuera de los muros perimetrales
+	local perEdge = 14
+	local step = side / (perEdge - 1)
+
+	-- Altura variable (cadena irregular) mediante una onda determinista.
+	local function heightAt(i: number): number
+		return 160 + 70 * (0.5 + 0.5 * math.sin(i * 1.7)) + 40 * (0.5 + 0.5 * math.cos(i * 0.9))
+	end
+
+	local idx = 0
+	for k = 0, perEdge - 1 do
+		local along = -half + k * step
+		local h = heightAt(idx); idx += 1
+		local w = 120 + (idx % 3) * 40
+		makeMountain(folder, Vector3.new(along, topY, -ring), h, w) -- norte
+		h = heightAt(idx); idx += 1
+		makeMountain(folder, Vector3.new(along, topY, ring), h, w) -- sur
+		h = heightAt(idx); idx += 1
+		makeMountain(folder, Vector3.new(-ring, topY, along), h, w) -- oeste
+		h = heightAt(idx); idx += 1
+		makeMountain(folder, Vector3.new(ring, topY, along), h, w) -- este
+	end
+end
+
+-- buildSpawn — Punto de aparición dentro del mundo ártico (centro del mapa),
+-- para garantizar que el Jugador aparezca sobre la nieve y no en un baseplate
+-- ajeno. Neutral para que no cree equipos.
+local function buildSpawn(parent: Instance, topY: number): ()
+	local spawn = Instance.new("SpawnLocation")
+	spawn.Name = "ArcticSpawn"
+	spawn.Anchored = true
+	spawn.CanCollide = true
+	spawn.Neutral = true
+	spawn.Size = Vector3.new(12, 1, 12)
+	spawn.Position = Vector3.new(0, topY + 0.5, 0)
+	spawn.Color = COLOR_ICE
+	spawn.Material = Enum.Material.Ice
+	spawn.TopSurface = Enum.SurfaceType.Smooth
+	spawn.BottomSurface = Enum.SurfaceType.Smooth
+	spawn.Parent = parent
+end
+
+--============================================================================
 -- API pública
 --============================================================================
 
@@ -300,9 +434,15 @@ function WorldSystem.buildWorld(world: World): { [string]: WorldNode }
 	host:ClearAllChildren()
 	nodes = {}
 
+	-- Ambiente ártico (iluminación/atmósfera/nubes) y nieve de Terreno real.
+	applyArcticLighting()
+
 	local topY = buildBaseplate(host)
+	paintSnowGround(world)
 	buildPerimeter(host, world, topY)
+	buildMountainRange(host, world, topY)
 	buildLakes(host, world, topY)
+	buildSpawn(host, topY)
 
 	local resourcesFolder = Instance.new("Folder")
 	resourcesFolder.Name = "Resources"

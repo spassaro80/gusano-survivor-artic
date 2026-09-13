@@ -18,8 +18,12 @@
 local NEEDS = table.freeze({
 	MAX = 100, -- Máximo de las barras de necesidad (Req. 4.1)
 	MIN = 0, -- Mínimo de las barras de necesidad (Req. 4.1)
-	HUNGER_DECAY_PER_S = 1, -- Consumo de Hambre en %/s (Req. 4.5)
-	THIRST_DECAY_PER_S = 1, -- Consumo de Sed en %/s (Req. 4.6)
+	-- Tasas de consumo (%/s). Ajustadas a un ritmo jugable: una barra llena tarda
+	-- ~8 min en agotarse por descuido, y beber/comer (+40) da un buen respiro.
+	-- (Balance de juego; ver design.md "Constantes de balance").
+	WARMTH_DECAY_PER_S = 0.2, -- Consumo base de Calor en %/s (×2 bajo nieve/ventisca)
+	HUNGER_DECAY_PER_S = 0.2, -- Consumo de Hambre en %/s (Req. 4.5)
+	THIRST_DECAY_PER_S = 0.2, -- Consumo de Sed en %/s (Req. 4.6)
 	COLD_EXPOSURE_MULTIPLIER = 2, -- Multiplicador de consumo de Calor bajo nieve/ventisca ×2 (Req. 4.3, 6.6)
 	HEALTH_DECAY_PER_S_WHEN_DEPLETED = 5, -- Caída de Salud en %/s si una necesidad está a 0 (Req. 4.7)
 	DRINK_THIRST_RESTORE = 40, -- Recuperación de Sed al beber (Req. 11.1)

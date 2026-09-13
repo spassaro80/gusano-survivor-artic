@@ -14,7 +14,8 @@
 	clamp (Constants.NEEDS.MIN / Constants.NEEDS.MAX).
 
 	Reglas modeladas (ver documento de diseño y requisitos):
-	- Hambre y Sed disminuyen 1%/s (Req. 4.5, 4.6).
+	- Hambre y Sed disminuyen a Constants.NEEDS.HUNGER_DECAY_PER_S / THIRST_DECAY_PER_S
+	  (%/s) (Req. 4.5, 4.6).
 	- Calor disminuye a una tasa base y al DOBLE cuando el entorno expone al
 	  Jugador a nieve o ventisca (Req. 4.3, 6.6).
 	- Cuando al menos una de Calor/Hambre/Sed vale 0, la Salud cae 5%/s (Req. 4.7).
@@ -38,11 +39,9 @@ local THIRST_DECAY_PER_S = Constants.NEEDS.THIRST_DECAY_PER_S
 local COLD_EXPOSURE_MULTIPLIER = Constants.NEEDS.COLD_EXPOSURE_MULTIPLIER
 local HEALTH_DECAY_PER_S_WHEN_DEPLETED = Constants.NEEDS.HEALTH_DECAY_PER_S_WHEN_DEPLETED
 
--- Tasa base de consumo de Calor en %/s. No existe una constante dedicada en
--- Constants.lua (solo el multiplicador ×2 de exposición al frío), por lo que se
--- adopta la misma cadencia base de 1%/s que Hambre y Sed. Bajo nieve o ventisca
--- esta tasa se multiplica por COLD_EXPOSURE_MULTIPLIER (Req. 4.3, 6.6).
-local BASE_WARMTH_DECAY_PER_S = 1
+-- Tasa base de consumo de Calor en %/s (Constants.NEEDS.WARMTH_DECAY_PER_S). Bajo
+-- nieve o ventisca esta tasa se multiplica por COLD_EXPOSURE_MULTIPLIER (Req. 4.3, 6.6).
+local BASE_WARMTH_DECAY_PER_S = Constants.NEEDS.WARMTH_DECAY_PER_S
 
 local NeedsModel = {}
 
