@@ -1,0 +1,2 @@
+# Capa de servidor autoritativa (ServerScriptService).
+# GameServer.lua (orquestador) vive aqui; los sistemas en Systems/.

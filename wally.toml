@@ -1,0 +1,13 @@
+[package]
+name = "emma/juego-supervivencia-artico"
+version = "0.1.0"
+description = "7 Dias en el Artico - juego de supervivencia en primera persona para Roblox/Luau"
+license = "MIT"
+authors = ["Emma"]
+registry = "https://github.com/UpliftGames/wally-index"
+realm = "shared"
+
+[dev-dependencies]
+# Framework de pruebas estandar del ecosistema Roblox/Luau.
+# Se instala en DevPackages/ con `wally install` y se ejecuta con Lune o dentro de Studio.
+TestEZ = "roblox/testez@0.4.1"

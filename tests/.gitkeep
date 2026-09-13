@@ -1,0 +1,2 @@
+# Suite de pruebas TestEZ (ReplicatedStorage/Tests).
+# Pruebas unitarias + las 12 pruebas de propiedad; helper en tests/support/PropCheck.lua.

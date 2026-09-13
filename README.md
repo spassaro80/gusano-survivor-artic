@@ -19,19 +19,71 @@ Servidor autoritativo con tres capas:
 - **Servidor (`ServerScriptService`)**: posee el estado real y valida toda acción.
 - **Cliente (`StarterPlayer`)**: cámara en primera persona, HUD, menús e input.
 
+## Estructura del repositorio
+
+```
+default.project.json     -- Mapeo del arbol de Roblox (Rojo 7)
+rokit.toml               -- Toolchain con versiones fijadas (rojo, wally, lune)
+wally.toml               -- Dependencias (dev: TestEZ)
+src/
+  shared/                -> ReplicatedStorage/Shared  (logica pura)
+  remotes/               -> ReplicatedStorage/Remotes (contrato cliente-servidor)
+  server/                -> ServerScriptService        (sistemas autoritativos)
+    Systems/
+  client/                -> StarterPlayer/StarterPlayerScripts (cliente)
+tests/                   -> ReplicatedStorage/Tests    (TestEZ: unitarias + propiedades)
+```
+
+## Toolchain
+
+Las herramientas de línea de comandos se gestionan con
+[Rokit](https://github.com/rojo-rbx/rokit) (compatible con manifiestos de
+[Aftman](https://github.com/LPGhatguy/aftman)). Las versiones están fijadas en
+`rokit.toml`, de modo que cualquier PC obtiene exactamente las mismas versiones.
+
+1. Instala Rokit (o Aftman) siguiendo su README.
+2. En la raíz del repositorio, instala las herramientas declaradas:
+
+   ```bash
+   rokit install
+   ```
+
+   Esto deja disponibles `rojo`, `wally` y `lune`.
+
+3. Instala las dependencias de Luau declaradas en `wally.toml` (crea `DevPackages/`
+   con TestEZ):
+
+   ```bash
+   wally install
+   ```
+
 ## Desarrollo con Rojo
 
-Este proyecto está pensado para sincronizarse con Roblox Studio mediante
-[Rojo](https://rojo.space):
+Este proyecto se sincroniza con Roblox Studio mediante [Rojo](https://rojo.space):
 
-1. En un PC con Roblox Studio instalado, instala Rojo y el plugin de Studio.
-2. Clona este repositorio.
+1. En un PC con Roblox Studio instalado, instala la toolchain (ver sección
+   anterior) y el plugin de Rojo para Studio.
+2. Clona este repositorio y ejecuta `wally install` una vez.
 3. Ejecuta `rojo serve` en la raíz del proyecto.
 4. En Studio, abre el plugin de Rojo y pulsa **Connect**.
-5. El código se monta en el árbol del juego. Pulsa **Play** para probar.
+5. El código de `src/` y `tests/` se monta en el árbol del juego. Pulsa **Play**
+   para probar.
 
 > Nota: el guardado con `DataStoreService` requiere el juego publicado o
 > "Enable Studio Access to API Services" activado en Studio.
+
+## Ejecutar las pruebas
+
+La suite (pruebas unitarias + las 12 pruebas de propiedad) usa **TestEZ** y puede
+ejecutarse de dos formas:
+
+- **Fuera de Studio (local/CI):** con [Lune](https://github.com/lune-org/lune),
+  cargando `tests/` y arrancando TestEZ desde un script runner.
+- **Dentro de Studio:** con Rojo sincronizado, ejecutando TestEZ sobre
+  `ReplicatedStorage/Tests`.
+
+Requisito previo en ambos casos: haber ejecutado `wally install` para que TestEZ
+esté presente en `DevPackages/`.
 
 ## Requisitos para jugar
 

@@ -1,0 +1,18 @@
+# Toolchain gestionado con Rokit (https://github.com/rojo-rbx/rokit)
+# Instala todas las herramientas con: `rokit install`
+# Rokit es compatible con manifiestos de Aftman; si prefieres Aftman,
+# el mismo bloque [tools] es válido en un `aftman.toml`.
+
+[tools]
+# Sincroniza el código de disco con Roblox Studio.
+rojo = "rojo-rbx/rojo@7.4.4"
+
+# Gestor de paquetes de Luau/Roblox (resuelve las dependencias de wally.toml).
+wally = "UpliftGames/wally@0.3.2"
+
+# Runner de pruebas fuera de Studio: ejecuta la suite de TestEZ en local/CI.
+lune = "lune-org/lune@0.8.9"
+
+# (Opcional) Genera los tipos Luau de los paquetes instalados por wally,
+# útil para el modo --!strict de los módulos de Shared.
+wally-package-types = "JohnnyMorganz/wally-package-types@0.3.2"
