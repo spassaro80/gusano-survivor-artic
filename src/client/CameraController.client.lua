@@ -50,6 +50,7 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 
 local Remotes = require(ReplicatedStorage:WaitForChild("Remotes"))
 
@@ -89,6 +90,24 @@ local firstPersonEnabled: boolean = false
 local function setFirstPerson(): ()
 	-- LockFirstPerson bloquea la cámara en primera persona de inmediato.
 	player.CameraMode = Enum.CameraMode.LockFirstPerson
+end
+
+--[[
+	setMenuMode — Fuerza ACTIVAMENTE la cámara en tercera persona (Classic) y el
+	ratón LIBRE y visible. Se usa durante el menú y el tutorial para garantizar que
+	el cursor funcione, incluso si la propiedad `StarterPlayer.CameraMode` del lugar
+	estuviera en `LockFirstPerson` (que el motor aplicaría por su cuenta). Idempotente.
+]]
+local function setMenuMode(): ()
+	if player.CameraMode ~= Enum.CameraMode.Classic then
+		player.CameraMode = Enum.CameraMode.Classic
+	end
+	if UserInputService.MouseBehavior ~= Enum.MouseBehavior.Default then
+		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+	end
+	if not UserInputService.MouseIconEnabled then
+		UserInputService.MouseIconEnabled = true
+	end
 end
 
 --[[
@@ -160,9 +179,11 @@ end
 	ante cambios externos del modo de cámara.
 ]]
 local function onRenderStepped(): ()
-	-- Mientras la partida activa no haya comenzado, no tocar la cámara ni la
-	-- visibilidad: el cursor debe quedar libre para el menú/tutorial (Req. 3.1).
+	-- Mientras la partida activa no haya comenzado, imponer modo menú (cámara
+	-- normal + ratón libre) de forma defensiva cada fotograma, por si algo (el
+	-- motor o la propiedad del lugar) intentara bloquear el cursor (Req. 3.1).
 	if not firstPersonEnabled then
+		setMenuMode()
 		return
 	end
 
@@ -185,7 +206,10 @@ end
 	`RenderStepped` que mantiene la visibilidad de brazos y herramienta.
 ]]
 local function start(): ()
-	print("[Gusano] CameraController v3: raton libre en menu/tutorial, 1a persona al iniciar.")
+	print("[Gusano] CameraController v4: raton libre FORZADO en menu/tutorial, 1a persona al iniciar.")
+
+	-- Ratón libre desde el primer instante (menú), pase lo que pase con la cámara.
+	setMenuMode()
 
 	-- Si el personaje ya existe al arrancar (hot-reload / carga tardía), vincularlo.
 	if player.Character then

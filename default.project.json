@@ -23,6 +23,9 @@
 
     "StarterPlayer": {
       "$className": "StarterPlayer",
+      "$properties": {
+        "CameraMode": "Classic"
+      },
       "StarterPlayerScripts": {
         "$className": "StarterPlayerScripts",
         "$path": "src/client"
