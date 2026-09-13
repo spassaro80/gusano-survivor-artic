@@ -63,10 +63,12 @@ export type WorldNode = {
 -- Configuración de construcción (studs por bloque y estética mínima).
 --============================================================================
 
--- Cada bloque lógico del mapa mide BLOCK_SIZE studs en el mundo físico. Es una
--- elección mínima razonable: el mapa lógico de 500x500 bloques se materializa en
--- un baseplate de 500*BLOCK_SIZE studs por lado, centrado en el origen.
-local BLOCK_SIZE = 4
+-- Cada bloque lógico del mapa mide BLOCK_SIZE studs en el mundo físico. El mapa
+-- lógico de 500x500 bloques se materializa en un baseplate de 500*BLOCK_SIZE studs
+-- por lado, centrado en el origen. Se usa un valor ajustado para que el mundo no
+-- quede enorme y vacío: así los recursos se ven más densos y las montañas del
+-- perímetro quedan más cerca y visibles desde el centro.
+local BLOCK_SIZE = 3
 
 -- Constantes de distribución (fuente de verdad: Constants.WORLD).
 local MAP_SIZE: number = Constants.WORLD.MAP_SIZE
@@ -145,9 +147,35 @@ local function buildBaseplate(parent: Instance): number
 	return 0 -- altura de la cara superior del baseplate
 end
 
--- buildPerimeter — Banda perimetral infranqueable de montañas/colinas (Req. 5.2).
--- Se materializa como cuatro muros altos que rodean el área interior transitable,
--- cada uno con un grosor de `perimeter` bloques.
+-- makeMountain — Pico nevado: bloque de roca con caperuza de nieve. `base` es la
+-- posición del pie del pico (a la altura del suelo). Usada por el perímetro
+-- (cordillera) y por el anillo de montañas del horizonte.
+local function makeMountain(parent: Instance, base: Vector3, height: number, width: number): ()
+	local rock = makePart(
+		"Mountain",
+		Vector3.new(width, height, width),
+		base + Vector3.new(0, height / 2, 0),
+		COLOR_ROCK_DARK
+	)
+	rock.Material = Enum.Material.Rock
+	rock.Parent = parent
+
+	local capHeight = height * 0.32
+	local cap = makePart(
+		"SnowCap",
+		Vector3.new(width * 0.82, capHeight, width * 0.82),
+		base + Vector3.new(0, height + capHeight / 2, 0),
+		COLOR_SNOWCAP
+	)
+	cap.Material = Enum.Material.Snow
+	cap.Parent = parent
+end
+
+-- buildPerimeter — Banda perimetral infranqueable convertida en una CORDILLERA
+-- NEVADA claramente visible (Req. 5.2). Se compone de: (1) cuatro muros altos que
+-- garantizan que el borde es infranqueable, y (2) una hilera de picos nevados de
+-- altura variable por encima de cada muro para que se vea una cadena montañosa en
+-- el horizonte en todas las direcciones desde el centro del mapa.
 local function buildPerimeter(parent: Instance, world: World, topY: number)
 	local band = Instance.new("Folder")
 	band.Name = "Perimeter"
@@ -155,11 +183,11 @@ local function buildPerimeter(parent: Instance, world: World, topY: number)
 
 	local side = world.size * BLOCK_SIZE
 	local bandStuds = world.perimeter * BLOCK_SIZE
-	local wallHeight = 60
+	local wallHeight = 220 -- muro base alto: barrera garantizada y ya visible
 	local half = side / 2
 	local y = topY + wallHeight / 2
 
-	-- Muros norte/sur (a lo largo del eje X) y este/oeste (a lo largo del eje Z).
+	-- (1) Muros sólidos norte/sur (eje X) y este/oeste (eje Z): barrera continua.
 	local northSouth = Vector3.new(side, wallHeight, bandStuds)
 	local eastWest = Vector3.new(bandStuds, wallHeight, side)
 	local offset = half - bandStuds / 2
@@ -170,11 +198,23 @@ local function buildPerimeter(parent: Instance, world: World, topY: number)
 		{ name = "PerimeterWest", size = eastWest, pos = Vector3.new(-offset, y, 0) },
 		{ name = "PerimeterEast", size = eastWest, pos = Vector3.new(offset, y, 0) },
 	}
-
 	for _, w in walls do
-		local wall = makePart(w.name, w.size, w.pos, COLOR_MOUNTAIN)
+		local wall = makePart(w.name, w.size, w.pos, COLOR_ROCK_DARK)
 		wall.Material = Enum.Material.Rock
 		wall.Parent = band
+	end
+
+	-- (2) Picos nevados de altura variable sobre cada borde (silueta de cordillera).
+	local peaks = 18
+	local step = side / (peaks - 1)
+	for k = 0, peaks - 1 do
+		local along = -half + k * step
+		local extra = 120 + 140 * (0.5 + 0.5 * math.sin(k * 1.3))
+		local pw = 90 + (k % 3) * 34
+		makeMountain(band, Vector3.new(along, topY, -offset), wallHeight + extra, pw)
+		makeMountain(band, Vector3.new(along, topY, offset), wallHeight + extra, pw)
+		makeMountain(band, Vector3.new(-offset, topY, along), wallHeight + extra, pw)
+		makeMountain(band, Vector3.new(offset, topY, along), wallHeight + extra, pw)
 	end
 end
 
@@ -207,44 +247,83 @@ local function buildLakes(parent: Instance, world: World, topY: number)
 	end
 end
 
--- buildStone — Instancia mínima de una Roca cosechable (Part etiquetado).
+-- buildStone — Roca cosechable con aspecto redondeado y nevado (Model: peñasco +
+-- caperuza de nieve). Tamaños en studs absolutos para que se vea bien sea cual sea
+-- BLOCK_SIZE. El nodo se etiqueta en instantiateNode (incluidas todas sus partes).
 local function buildStone(position: Vector3): Instance
-	local stone = makePart("Stone", Vector3.new(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE), position + Vector3.new(0, BLOCK_SIZE / 2, 0), COLOR_STONE)
-	stone.Material = Enum.Material.Rock
-	return stone
+	local model = Instance.new("Model")
+	model.Name = "Roca"
+
+	local w = 5
+	local rock = makePart("Peñasco", Vector3.new(w, w * 0.8, w), position + Vector3.new(0, w * 0.4, 0), COLOR_STONE)
+	rock.Shape = Enum.PartType.Ball
+	rock.Material = Enum.Material.Slate
+	rock.Parent = model
+
+	local cap = makePart(
+		"NieveRoca",
+		Vector3.new(w * 0.78, w * 0.5, w * 0.78),
+		position + Vector3.new(0, w * 0.62, 0),
+		COLOR_SNOWCAP
+	)
+	cap.Shape = Enum.PartType.Ball
+	cap.Material = Enum.Material.Snow
+	cap.CanCollide = false
+	cap.Parent = model
+
+	model.PrimaryPart = rock
+	return model
 end
 
--- buildTree — Instancia mínima de un Árbol cosechable: Model con tronco y copa.
--- El Model es el nodo etiquetado; su PrimaryPart es el tronco.
+-- buildTree — Árbol cosechable con aspecto de pino nevado y cartoon (Model: tronco
+-- + copas redondeadas apiladas + punta de nieve). Tamaños en studs absolutos.
 local function buildTree(position: Vector3): Instance
 	local model = Instance.new("Model")
-	model.Name = "Tree"
+	model.Name = "Arbol"
 
-	local trunkHeight = BLOCK_SIZE * 2
+	local trunkHeight = 6
 	local trunk = makePart(
-		"Trunk",
-		Vector3.new(BLOCK_SIZE * 0.4, trunkHeight, BLOCK_SIZE * 0.4),
+		"Tronco",
+		Vector3.new(1.8, trunkHeight, 1.8),
 		position + Vector3.new(0, trunkHeight / 2, 0),
 		COLOR_TRUNK
 	)
 	trunk.Material = Enum.Material.Wood
 	trunk.Parent = model
 
-	local leaves = makePart(
-		"Leaves",
-		Vector3.new(BLOCK_SIZE * 1.6, BLOCK_SIZE * 1.6, BLOCK_SIZE * 1.6),
-		position + Vector3.new(0, trunkHeight + BLOCK_SIZE * 0.6, 0),
-		COLOR_LEAVES
-	)
-	leaves.Material = Enum.Material.Grass
-	leaves.Parent = model
+	-- Copas redondeadas (esferas) de tamaño decreciente, apiladas sobre el tronco.
+	local tiers = { 8, 6.2, 4.6 }
+	local y = trunkHeight
+	for i, s in ipairs(tiers) do
+		local foliage = makePart(
+			"Copa" .. i,
+			Vector3.new(s, s, s),
+			position + Vector3.new(0, y + s * 0.35, 0),
+			COLOR_LEAVES
+		)
+		foliage.Shape = Enum.PartType.Ball
+		foliage.Material = Enum.Material.Grass
+		foliage.CanCollide = false
+		foliage.Parent = model
+		y += s * 0.55
+	end
+
+	-- Punta de nieve en lo alto.
+	local tip = makePart("PuntaNieve", Vector3.new(3, 3, 3), position + Vector3.new(0, y, 0), COLOR_SNOWCAP)
+	tip.Shape = Enum.PartType.Ball
+	tip.Material = Enum.Material.Snow
+	tip.CanCollide = false
+	tip.Parent = model
 
 	model.PrimaryPart = trunk
 	return model
 end
 
 -- instantiateNode — Crea la Instance física de un nodo según su tipo y la etiqueta
--- con los atributos que HarvestSystem usará para localizarlo e identificarlo.
+-- con los atributos que HarvestSystem usará para localizarlo e identificarlo. Como
+-- los nodos son Models, el rayo del cliente impacta en una PARTE hija; por eso se
+-- copia el atributo "id"/"kind" a TODAS las BaseParts, para que
+-- HarvestSystem.resolveNodeId lo encuentre sin importar qué parte se golpee.
 local function instantiateNode(node: WorldNode, parent: Instance): Instance
 	local instance: Instance
 	if node.kind == "tree" then
@@ -255,6 +334,16 @@ local function instantiateNode(node: WorldNode, parent: Instance): Instance
 	instance:SetAttribute("kind", node.kind)
 	instance:SetAttribute("id", node.id)
 	instance:SetAttribute("hits", node.hits)
+
+	-- Propaga id/kind a las partes para que el raycast del cliente resuelva el nodo
+	-- aunque golpee una copa/peñasco/punta (no solo el Model raíz).
+	for _, descendant in instance:GetDescendants() do
+		if descendant:IsA("BasePart") then
+			descendant:SetAttribute("id", node.id)
+			descendant:SetAttribute("kind", node.kind)
+		end
+	end
+
 	instance.Parent = parent
 	return instance
 end
@@ -282,11 +371,13 @@ local function applyArcticLighting(): ()
 			atmos = Instance.new("Atmosphere")
 			atmos.Parent = Lighting
 		end
-		atmos.Density = 0.36
-		atmos.Haze = 2.2
-		atmos.Color = Color3.fromRGB(220, 228, 238)
-		atmos.Decay = Color3.fromRGB(184, 202, 222)
-		atmos.Glare = 0.25
+		-- Densidad/neblina bajas: un poco de bruma ártica sin llegar a "borrar" las
+		-- montañas lejanas del horizonte (antes eran demasiado altas y las ocultaban).
+		atmos.Density = 0.16
+		atmos.Haze = 0.6
+		atmos.Color = Color3.fromRGB(224, 232, 242)
+		atmos.Decay = Color3.fromRGB(188, 206, 226)
+		atmos.Glare = 0.1
 	end)
 
 	pcall(function()
@@ -315,29 +406,6 @@ local function paintSnowGround(world: World): ()
 	end)
 end
 
--- makeMountain — Pico decorativo: bloque de roca con caperuza de nieve. `base` es
--- la posición del pie del pico (a la altura del suelo).
-local function makeMountain(parent: Instance, base: Vector3, height: number, width: number): ()
-	local rock = makePart(
-		"Mountain",
-		Vector3.new(width, height, width),
-		base + Vector3.new(0, height / 2, 0),
-		COLOR_ROCK_DARK
-	)
-	rock.Material = Enum.Material.Rock
-	rock.Parent = parent
-
-	local capHeight = height * 0.32
-	local cap = makePart(
-		"SnowCap",
-		Vector3.new(width * 0.82, capHeight, width * 0.82),
-		base + Vector3.new(0, height + capHeight / 2, 0),
-		COLOR_SNOWCAP
-	)
-	cap.Material = Enum.Material.Snow
-	cap.Parent = parent
-end
-
 -- buildMountainRange — Anillo de montañas nevadas justo por fuera de la banda
 -- perimetral, para que se vea una cadena montañosa en el horizonte en todas las
 -- direcciones desde el centro del mapa (Req. 5.2, aspecto). Determinista.
@@ -348,13 +416,14 @@ local function buildMountainRange(parent: Instance, world: World, topY: number):
 
 	local side = world.size * BLOCK_SIZE
 	local half = side / 2
-	local ring = half + 90 -- un poco por fuera de los muros perimetrales
+	local ring = half + 130 -- por fuera del perímetro, para dar profundidad al horizonte
 	local perEdge = 14
 	local step = side / (perEdge - 1)
 
-	-- Altura variable (cadena irregular) mediante una onda determinista.
+	-- Altura variable (cadena irregular) mediante una onda determinista. Más altas
+	-- que el perímetro para asomar por detrás y crear un horizonte montañoso.
 	local function heightAt(i: number): number
-		return 160 + 70 * (0.5 + 0.5 * math.sin(i * 1.7)) + 40 * (0.5 + 0.5 * math.cos(i * 0.9))
+		return 380 + 140 * (0.5 + 0.5 * math.sin(i * 1.7)) + 90 * (0.5 + 0.5 * math.cos(i * 0.9))
 	end
 
 	local idx = 0

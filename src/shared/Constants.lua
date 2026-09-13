@@ -108,8 +108,8 @@ local WORLD = table.freeze({
 	MIN_LAKES = 3, -- Número mínimo de lagos (Req. 5.x)
 	MAX_LAKES = 8, -- Número máximo de lagos (Req. 5.x)
 	MIN_RESOURCE_SEPARATION = 2, -- Separación mínima entre recursos en bloques (Req. 5.4)
-	STONE_COUNT = 40, -- Número de piedras a generar (Req. 5.2)
-	TREE_COUNT = 60, -- Número de árboles a generar (Req. 5.2)
+	STONE_COUNT = 100, -- Número de piedras a generar (más densidad de recursos)
+	TREE_COUNT = 160, -- Número de árboles a generar (más densidad de recursos)
 })
 
 local Constants = table.freeze({
